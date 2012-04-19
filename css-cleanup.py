@@ -10,17 +10,30 @@ fileName = sys.argv[1] if len(sys.argv) > 1 else None
 overwriteMode = sys.argv[2] if len(sys.argv) > 2 else None
 
 currentToken = None
+openTokenBlock = False
+inLineStyle = False
 tokens = {}
 
 def hasSelector(line):
-    # TODO: Fix this
-    return re.match("(?!.*:.*;)", line)
+    """
+        There is a selector on this line if
+        (1) This line is non-empty and there is no ; (matches css of style: selector \n { ... })
+        (2) This line is non-empty and there is a {  (matches css of style: selector { \n ... } and selector { ... }) 
+    """
+    return re.search("[\w{}]", line) and (re.match("(?!.*;)", line) or re.match("{", line))
     
-def endSelector(line):
+def hasStyling(line):
+    return re.match(".*:.*;", line)
+
+def beginTokenBlock(line):
+    return re.search("{", line)
+
+def endTokenBlock(line):
     return re.search("}", line)
 
 def tokenize(line):
     global currentToken
+    global openTokenBlock
     # Tokenize a selector string
     # Two cases: the selectors are in-lined with the styling, or they are not
     tokenList = None
@@ -28,25 +41,29 @@ def tokenize(line):
         # styles in this line
         arr = line.split("{")
         # We only care about the part before the open brace
-        tokenList = re.split(",\s*", arr[0])        
+        tokenList = re.split(",\s*", arr[0])
+        openTokenBlock = True
     else:
         tokenList = re.split(",\s*", line)
     selectorTree = tuple(tokenList[i].strip() for i in range(len(tokenList)) if tokenList[i])
-    tokens[selectorTree] = ""
+    tokens[selectorTree] = "" if not openTokenBlock else " {"
     currentToken = selectorTree
+    print "tokenize", currentToken
     
 def addStyles(line):
     # Add the list of styles to the current token
     global currentToken
-    if currentToken:
+    global openTokenBlock
+    global inLineStyle
+    print currentToken
+    if openTokenBlock and currentToken:
         # Handle stuff
-        if hasSelector(line):
+        if inLineStyle:
             # Styles are inlined
-            arr = line.split("{")
-            print 'current token', currentToken
-            tokens[currentToken] += "{ " + arr[1]
+            # TODO: Handle this case
+            return
         else:
-            print 'current token', currentToken
+            print "adding to token"
             tokens[currentToken] += line
     else:
         # We can't do anything
@@ -63,14 +80,31 @@ if fileName and re.match("^.*\.css$", fileName):
         # Open a new file for writing
         outFile = open(re.match("^(.*)\.css$", fileName).groups()[0] + "_clean.css", "w")
     for line in inFile:
-        print 'has a selector', hasSelector(line)
-        if hasSelector(line):
-            # Tokenize the line
-            tokenize(line)
-        if endSelector(line):
-            currentToken = None;
-        # Consolidate the styling for this line
-        addStyles(line)
+        print line
+        if endTokenBlock(line):
+            print "end of block"
+            currentToken = None
+            openTokenBlock = False
+        elif openTokenBlock:
+            print "adding styles"
+            print "current token", currentToken
+            addStyles(line)
+        elif hasSelector(line):
+            print "found selector"
+            currentToken = tokenize(line)
+            if hasStyling(line):
+                print "has styling"
+                # Inlined styling
+                inLineStyle = True
+                addStyles(line)
+                inLineStyle = False
+                currentToken = None
+        elif beginTokenBlock(line):
+            openTokenBlock = True
+        else:
+            # New line or something that we can ignore
+            continue
+            
     # Write the tokens back to the file
     print tokens.items()
     tokenArray = tokens.items()
