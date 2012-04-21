@@ -56,32 +56,24 @@ def tokenize(line):
     # Tokenize a selector string
     # Two cases: the selectors are in-lined with the styling, or they are not
     tokenList = None
-    if re.match("\w", line):
+    if re.search("\w", line):
         if re.search("{", line):
             # styles in this line
             arr = line.split("{")
             # We only care about the part before the open brace
             tokenList = re.split(",\s*", arr[0])
-            openTokenBlock = True
         else:
             tokenList = re.split(",\s*", line)
         for selectorTree in tokenList:
             selectors = tuple(filter(None, re.split("\s*", selectorTree)))
-            print "selectors", selectors
             tokens[selectors] = tokens[selectors] if selectors in tokens else ""
             activeTokens.append(selectors)
-        """
-        selectorTree = tuple(tokenList[i].strip() for i in range(len(tokenList)) if tokenList[i])
-        print "selector tree", selectorTree
-        tokens[selectorTree] = tokens[selectorTree] if selectorTree in tokens else ""       # TODO: Check if this selector already has styles, and if so don't overwrite
-        activeTokens.append(selectorTree)
-        """
     
 def addStyles(line):
     # Add the list of styles to the current token
     global activeTokens
     global openTokenBlock
-    global inLineStyles
+    global inLineStyle
     if openTokenBlock and activeTokens:
         # Handle stuff
         if inLineStyle:
@@ -108,9 +100,15 @@ if fileName and re.match("^.*\.css$", fileName):
     for line in inFile:
         if closeBlock(line):
             # End of the block
+            # Check for inlined styles
+            if openBlock(line):
+                tokenize(line)
+                addStyles(line)
             continue
         elif openBlock(line):
             # Open a new block
+            # There may be selectors on this line, if the brace is inlined
+            tokenize(line)
             continue
         # If we opened a new block, its possible that the styles are inlined
         if openTokenBlock:
@@ -119,7 +117,6 @@ if fileName and re.match("^.*\.css$", fileName):
         else:
             # Tokenize the line
             tokenize(line)
-    print tokens
     # Write the tokens back to the file
     tokens.items().sort()
     for tokens, styles in tokens.items():
