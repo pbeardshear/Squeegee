@@ -12,6 +12,7 @@ overwriteMode = sys.argv[2] if len(sys.argv) > 2 else None
 activeTokens = []
 openTokenBlock = False
 inLineStyle = False
+commentBlock = False
 tokens = {}
 
 def hasSelector(line):
@@ -86,6 +87,12 @@ def addStyles(line):
     else:
         # We can't do anything
         return
+        
+def beginComment(line):
+    return re.search("\/\*", line)
+
+def endComment(line):
+    return re.search("\*\/", line)
 
 if fileName and re.match("^.*\.css$", fileName):
     inFile = open(fileName, "r")
@@ -98,7 +105,13 @@ if fileName and re.match("^.*\.css$", fileName):
         # Open a new file for writing
         outFile = open(re.match("^(.*)\.css$", fileName).groups()[0] + "_clean.css", "w")
     for line in inFile:
-        if closeBlock(line):
+        if endComment(line):
+            commentBlock = False
+            continue
+        elif commentBlock:
+            # Currently throwing away any comments not in a style block
+            continue
+        elif closeBlock(line):
             # End of the block
             # Check for inlined styles
             if openBlock(line):
@@ -114,12 +127,14 @@ if fileName and re.match("^.*\.css$", fileName):
         if openTokenBlock:
             # We are inside a block, so just add the line to the current active tokens
             addStyles(line)
+        elif beginComment(line):
+            commentBlock = True
         else:
             # Tokenize the line
             tokenize(line)
     # Write the tokens back to the file
-    tokens.items().sort()
-    for tokens, styles in tokens.items():
+    tokenArray = sorted(tokens.items(), key=lambda x: x[0][0])
+    for tokens, styles in tokenArray:
         outFile.write(" ".join(tokens))
         outFile.write("\n{\n")
         outFile.write(styles)
