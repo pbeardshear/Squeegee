@@ -67,15 +67,16 @@ def tokenize(line):
             tokenList = re.split(",\s*", line)
         for selectorTree in tokenList:
             selectors = tuple(filter(None, re.split("\s*", selectorTree)))
-            tokens[selectors] = tokens[selectors] if selectors in tokens else ""
-            activeTokens.append(selectors)
+            if selectors:
+                tokens[selectors] = tokens[selectors] if selectors in tokens else ""
+                activeTokens.append(selectors)
     
 def addStyles(line):
     # Add the list of styles to the current token
     global activeTokens
     global openTokenBlock
     global inLineStyle
-    if openTokenBlock and activeTokens:
+    if openTokenBlock and activeTokens and len(activeTokens):
         # Handle stuff
         if inLineStyle:
             # Styles are inlined
@@ -133,6 +134,7 @@ if fileName and re.match("^.*\.css$", fileName):
             # Tokenize the line
             tokenize(line)
     # Write the tokens back to the file
+    print tokens
     tokenArray = sorted(tokens.items(), key=lambda x: x[0][0])
     for tokens, styles in tokenArray:
         outFile.write(" ".join(tokens))
